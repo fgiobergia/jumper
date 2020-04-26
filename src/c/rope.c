@@ -55,6 +55,7 @@ static void accel_data_handler(AccelData *data,uint32_t num_samples) {
 	uint16_t b  = count_raises(data, 'y', num_samples);
 	uint16_t c = count_raises(data, 'z', num_samples);
 	uint32_t i;
+	APP_LOG(APP_LOG_LEVEL_INFO, "=========");
 	for (i = 0; i < num_samples; i++) {
 		APP_LOG(APP_LOG_LEVEL_INFO, "(%d,%d,%d)", data[i].x, data[i].y, data[i].z);
 	}
@@ -100,6 +101,7 @@ static void prv_window_unload(Window *window) {
 static void prv_init(void) {
   s_window = window_create();
   window_set_click_config_provider(s_window, prv_click_config_provider);
+  accel_service_set_sampling_rate(ACCEL_SAMPLING_50HZ);
   accel_data_service_subscribe(25, accel_data_handler);
   int a = 0, b= 0, c = 0;
   count_x = &a;
