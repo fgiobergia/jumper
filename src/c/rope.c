@@ -3,33 +3,59 @@
 
 #define DICT_SIZE 650
 
+static bool s_js_ready;
+
 static Window *s_window;
 static TextLayer *s_text_layer;
 
+bool comm_is_js_ready() {
+	return s_js_ready;
+}
+
 static void outbox_sent_callback(DictionaryIterator *it, void *context) {
-	APP_LOG(APP_LOG_LEVEL_INFO, "Message sent successfully");
+	APP_LOG(APP_LOG_LEVEL_DEBUG, "Message sent successfully");
 }
 
 static void outbox_failed_callback(DictionaryIterator *it, AppMessageResult reason, void *context) {
 	APP_LOG(APP_LOG_LEVEL_ERROR, "Failed to send message. Reason %d", reason);
 }
 
+static void inbox_received_callback(DictionaryIterator *iter, void *context) {
+	APP_LOG(APP_LOG_LEVEL_INFO, "MSG RECEIVED");
+	Tuple *ready_tuple = dict_find(iter, MESSAGE_KEY_JSReady);
+	if (ready_tuple) {
+		APP_LOG(APP_LOG_LEVEL_INFO, "JS is ready");
+		s_js_ready = true;
+	}
+}
+
 static void accel_data_handler(AccelData *data,uint32_t num_samples) {
-	uint32_t i;
-	DictionaryIterator *iter;
-	//uint8_t buf[DICT_SIZE];
+	uint32_t i, ts, ts_prefix;
+	char buf[18];
+	if (comm_is_js_ready()) {
+		DictionaryIterator *iter;
+		//uint8_t buf[DICT_SIZE];
 
-	app_message_outbox_begin(&iter);
-	//dict_write_begin(&iter, buf, sizeof(buf));
-	dict_write_cstring(iter, 1, "string me up!");
-	dict_write_end(iter);
+		app_message_outbox_begin(&iter);
 
-	app_message_outbox_send();
+		/*
+		 * It is quite unlikely that the prefix will vary among
+		 * samples in the same batch. A change in the upper 
+		 * 32 bits of the timestamp occurs once every 2^32 milliseconds,
+		 * hopefully we will not be there to record it (even so,
+		 * it can be handled by the server and not by teeny-tiny pebble)
+		 */
+		ts_prefix = (uint32_t)(data[0].timestamp >> 32);
+		dict_write_uint32(iter, MESSAGE_KEY_TimestampPrefix, ts_prefix);
 
+		for (i = 0; i < num_samples; i++) {
+			ts = (uint32_t) data[i].timestamp & 0xffffffff;
+			snprintf(buf, sizeof(buf), "%d,%d,%d", data[i].x, data[i].y, data[i].z);
+			dict_write_cstring(iter, ts, buf);
+		}
 
-
-	for (i = 0; i < num_samples; i++) {
-//		APP_LOG(APP_LOG_LEVEL_INFO, "(%d,%d,%d)", data[i].x, data[i].y, data[i].z);
+		dict_write_end(iter);
+		app_message_outbox_send();
 	}
 }
 
@@ -72,19 +98,22 @@ static void prv_init(void) {
   /* register callbacks for sent/failed messages */
   app_message_register_outbox_sent(outbox_sent_callback);
   app_message_register_outbox_failed(outbox_failed_callback);
+  app_message_register_inbox_received(inbox_received_callback);
 
   accel_service_set_sampling_rate(ACCEL_SAMPLING_50HZ);
   accel_data_service_subscribe(25, accel_data_handler);
+
   APP_LOG(APP_LOG_LEVEL_INFO, "Min message size: %u Max message size: %lu", APP_MESSAGE_OUTBOX_SIZE_MINIMUM, app_message_outbox_size_maximum());
   window_set_window_handlers(s_window, (WindowHandlers) {
     .load = prv_window_load,
     .unload = prv_window_unload,
   });
 
-  /* 1 + (25 * 7) + (25 * 17) => 601 (round up to 650)
-   * 17: string format: "-xxxx,-xxxx,-xxxx"
+  /* 1 + (25 * 7) + (25 * 17) + 7 + 4 => 637 (round up to 650)
+   * 18: string format: "-xxxx,-xxxx,-xxxx\0"
+   * 7+4: format for timestamp prefix
    */
-  app_message_open(0, 650);
+  app_message_open(16, 650);
   const bool animated = true;
   window_stack_push(s_window, animated);
 }

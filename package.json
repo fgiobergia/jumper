@@ -19,9 +19,10 @@
     "watchapp": {
       "watchface": false
     },
-    "messageKeys": [
-      "dummy"
-    ],
+    "messageKeys": {
+      "JSReady": 0,
+      "TimestampPrefix": 1
+    },
     "resources": {
       "media": []
     }
