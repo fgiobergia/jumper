@@ -1,69 +1,36 @@
 #include <string.h>
 #include <pebble.h>
 
+#define DICT_SIZE 650
+
 static Window *s_window;
 static TextLayer *s_text_layer;
-static int *count_x, *count_y, *count_z;
-static char buf[32];
 
-
-static uint16_t count_raises(AccelData *data, char axis, uint32_t samples) {
-	uint32_t i, value = 0;
-	uint16_t was_low = 0, was_high = 0, prev_low = 0, raising_edge = 0, falling_edge = 0;
-	for (i = 0; i < samples; i++) {
-		switch (axis) {
-			case 'x':
-				value = data[i].x;
-				break;
-			case 'y': 
-				value = data[i].y;
-				break;
-			case 'z':
-				value = data[i].z;
-				break;
-			default:
-				break;
-		}
-		if (value > 2000000000) {
-			was_high++;
-			if (prev_low == 1) {
-				// was low, how is high -- keep track!
-				if (was_low > 0 && was_low <= 12) { // was low for less than 1/2 second! count it as a raising edge
-					raising_edge++;
-				}
-			}
-			prev_low = 0;
-			was_low = 0;
-		}
-		else {
-			was_low++;
-			if (prev_low == 0) { // was previously high, now going back to low!
-				if (was_high > 0 && was_high <= 12) { // was high for less than 1/2 second, count as lowering edge
-					falling_edge++;
-				}
-			}
-			prev_low = 1;
-			was_high = 0;
-		}
-	}
-	return (raising_edge + falling_edge) / 2;
+static void outbox_sent_callback(DictionaryIterator *it, void *context) {
+	APP_LOG(APP_LOG_LEVEL_INFO, "Message sent successfully");
 }
 
+static void outbox_failed_callback(DictionaryIterator *it, AppMessageResult reason, void *context) {
+	APP_LOG(APP_LOG_LEVEL_ERROR, "Failed to send message. Reason %d", reason);
+}
 
 static void accel_data_handler(AccelData *data,uint32_t num_samples) {
-	uint16_t a = count_raises(data, 'x', num_samples);
-	uint16_t b  = count_raises(data, 'y', num_samples);
-	uint16_t c = count_raises(data, 'z', num_samples);
 	uint32_t i;
-	APP_LOG(APP_LOG_LEVEL_INFO, "=========");
+	DictionaryIterator *iter;
+	//uint8_t buf[DICT_SIZE];
+
+	app_message_outbox_begin(&iter);
+	//dict_write_begin(&iter, buf, sizeof(buf));
+	dict_write_cstring(iter, 1, "string me up!");
+	dict_write_end(iter);
+
+	app_message_outbox_send();
+
+
+
 	for (i = 0; i < num_samples; i++) {
-		APP_LOG(APP_LOG_LEVEL_INFO, "(%d,%d,%d)", data[i].x, data[i].y, data[i].z);
+//		APP_LOG(APP_LOG_LEVEL_INFO, "(%d,%d,%d)", data[i].x, data[i].y, data[i].z);
 	}
-	(*count_x) += a;
-	(*count_y) += b;
-	(*count_z) += c;
-	snprintf(buf, sizeof(buf), "%d %d %d", *count_x, *count_y, *count_z);
-	text_layer_set_text(s_text_layer, buf);
 }
 
 static void prv_select_click_handler(ClickRecognizerRef recognizer, void *context) {
@@ -101,16 +68,23 @@ static void prv_window_unload(Window *window) {
 static void prv_init(void) {
   s_window = window_create();
   window_set_click_config_provider(s_window, prv_click_config_provider);
+
+  /* register callbacks for sent/failed messages */
+  app_message_register_outbox_sent(outbox_sent_callback);
+  app_message_register_outbox_failed(outbox_failed_callback);
+
   accel_service_set_sampling_rate(ACCEL_SAMPLING_50HZ);
   accel_data_service_subscribe(25, accel_data_handler);
-  int a = 0, b= 0, c = 0;
-  count_x = &a;
-  count_y = &b;
-  count_z = &c;
+  APP_LOG(APP_LOG_LEVEL_INFO, "Min message size: %u Max message size: %lu", APP_MESSAGE_OUTBOX_SIZE_MINIMUM, app_message_outbox_size_maximum());
   window_set_window_handlers(s_window, (WindowHandlers) {
     .load = prv_window_load,
     .unload = prv_window_unload,
   });
+
+  /* 1 + (25 * 7) + (25 * 17) => 601 (round up to 650)
+   * 17: string format: "-xxxx,-xxxx,-xxxx"
+   */
+  app_message_open(0, 650);
   const bool animated = true;
   window_stack_push(s_window, animated);
 }
