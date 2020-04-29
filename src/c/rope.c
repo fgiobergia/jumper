@@ -34,7 +34,6 @@ static void accel_data_handler(AccelData *data,uint32_t num_samples) {
 	char buf[18];
 	if (comm_is_js_ready()) {
 		DictionaryIterator *iter;
-		//uint8_t buf[DICT_SIZE];
 
 		app_message_outbox_begin(&iter);
 
@@ -53,6 +52,8 @@ static void accel_data_handler(AccelData *data,uint32_t num_samples) {
 			snprintf(buf, sizeof(buf), "%d,%d,%d", data[i].x, data[i].y, data[i].z);
 			dict_write_cstring(iter, ts, buf);
 		}
+
+		APP_LOG(APP_LOG_LEVEL_DEBUG, "%llu", data[num_samples-1].timestamp - data[0].timestamp);
 
 		dict_write_end(iter);
 		app_message_outbox_send();
@@ -100,10 +101,10 @@ static void prv_init(void) {
   app_message_register_outbox_failed(outbox_failed_callback);
   app_message_register_inbox_received(inbox_received_callback);
 
-  accel_service_set_sampling_rate(ACCEL_SAMPLING_50HZ);
   accel_data_service_subscribe(25, accel_data_handler);
+  // _set_sampling_fails if called before _service_subscribe
+  accel_service_set_sampling_rate(ACCEL_SAMPLING_50HZ);
 
-  APP_LOG(APP_LOG_LEVEL_INFO, "Min message size: %u Max message size: %lu", APP_MESSAGE_OUTBOX_SIZE_MINIMUM, app_message_outbox_size_maximum());
   window_set_window_handlers(s_window, (WindowHandlers) {
     .load = prv_window_load,
     .unload = prv_window_unload,

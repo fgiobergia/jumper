@@ -4,7 +4,6 @@ Pebble.addEventListener("ready", function(e) {
 });
 
 Pebble.addEventListener("appmessage", function(e) {
-	console.log("Message received");
 	const timestampPrefix = e.payload.TimestampPrefix;
 	const keys = Object.keys(e.payload).filter(k => { // filter out TimestampPrefix (and other possible future keys)
 		const key = parseInt(k);
@@ -16,12 +15,10 @@ Pebble.addEventListener("appmessage", function(e) {
 	}
 
 	const req = new XMLHttpRequest();
-	req.open("POST", "http://192.168.43.65:5000/api/v1/accel/reading");
+	req.open("POST", "http://35.175.140.60:5000/api/v1/accel/reading");
 	req.onload = function() {
 		console.log(this.status);
 	};
 	req.setRequestHeader("Content-Type", "application/json");
 	req.send(JSON.stringify(dict));
-
-
 });
