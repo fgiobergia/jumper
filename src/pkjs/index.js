@@ -1,11 +1,12 @@
 Pebble.addEventListener("ready", function(e) {
 	console.log("Connected!");
 	Pebble.sendAppMessage({ "JSReady": 1 });
-});
 
 Pebble.addEventListener("appmessage", function(e) {
 	const timestampPrefix = e.payload.TimestampPrefix;
-	const keys = Object.keys(e.payload).filter(k => { // filter out TimestampPrefix (and other possible future keys)
+
+	// filter out TimestampPrefix (and other possible future keys)
+	const keys = Object.keys(e.payload).filter(k => { 
 		const key = parseInt(k);
 		return !isNaN(key);
 	});
@@ -15,10 +16,13 @@ Pebble.addEventListener("appmessage", function(e) {
 	}
 
 	const req = new XMLHttpRequest();
-	req.open("POST", "http://35.175.140.60:5000/api/v1/accel/reading");
+	const api_endpoint = require("./api.json").api_endpoint;
+	req.open("POST", api_endpoint);
 	req.onload = function() {
 		console.log(this.status);
 	};
 	req.setRequestHeader("Content-Type", "application/json");
 	req.send(JSON.stringify(dict));
 });
+});
+

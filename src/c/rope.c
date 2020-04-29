@@ -53,8 +53,6 @@ static void accel_data_handler(AccelData *data,uint32_t num_samples) {
 			dict_write_cstring(iter, ts, buf);
 		}
 
-		APP_LOG(APP_LOG_LEVEL_DEBUG, "%llu", data[num_samples-1].timestamp - data[0].timestamp);
-
 		dict_write_end(iter);
 		app_message_outbox_send();
 	}
