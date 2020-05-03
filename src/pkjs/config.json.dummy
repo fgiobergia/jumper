@@ -1,0 +1,4 @@
+{
+    "apiEndpoint": "http://35.175.140.60:5000/api/v1/accel/reading",
+    "bufferLength": 500
+}
