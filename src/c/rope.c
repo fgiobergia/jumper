@@ -101,7 +101,7 @@ static void prv_init(void) {
 
   accel_data_service_subscribe(25, accel_data_handler);
   // _set_sampling_fails if called before _service_subscribe
-  accel_service_set_sampling_rate(ACCEL_SAMPLING_50HZ);
+  accel_service_set_sampling_rate(ACCEL_SAMPLING_100HZ);
 
   window_set_window_handlers(s_window, (WindowHandlers) {
     .load = prv_window_load,
