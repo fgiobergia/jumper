@@ -2,4 +2,5 @@
 build
 *.swp
 venv
+venv2
 server/storage/*
