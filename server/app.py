@@ -4,6 +4,7 @@ from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 api_version = 1
+auth_key = "abc123"
 outdir = "storage"
 
 tmp_storage = {}
@@ -12,7 +13,11 @@ tmp_storage = {}
 def reading():
     global tmp_storage
     obj = request.json
-    tmp_storage.update(obj)
+    auth_key_submitted = obj.pop("authKey")
+    if auth_key_submitted != auth_key:
+        return jsonify({"status": "unauthorized"}), 401
+
+    tmp_storage.update(obj.pop("payload"))
     print(len(tmp_storage))
 
     if len(tmp_storage) > 500:

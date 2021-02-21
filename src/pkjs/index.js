@@ -27,8 +27,12 @@ Pebble.addEventListener("appmessage", function(e) {
         req.onload = function() {
             console.log(this.status);
         };
+        const msg = {
+            authKey: config.authKey,
+            payload: buffer
+        }
         req.setRequestHeader("Content-Type", "application/json");
-        req.send(JSON.stringify(buffer));
+        req.send(JSON.stringify(msg));
         buffer = {};
     }
 });
