@@ -21,7 +21,8 @@
     },
     "messageKeys": {
       "JSReady": 0,
-      "TimestampPrefix": 1
+      "TimestampPrefix": 1,
+      "Count": 2
     },
     "resources": {
       "media": []
