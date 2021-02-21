@@ -17,9 +17,9 @@ static bool s_js_ready;
 static Window *s_window;
 static TextLayer *text_status, *text_packets_sent, *text_packets_lost, *text_count;
 
-static int packets_sent = 0, packets_lost = 0;
+static int packets_sent = 0, packets_lost = 0, count = 0;
 
-char packets_sent_buf[18], packets_lost_buf[18];
+char packets_sent_buf[8], packets_lost_buf[8], count_buf[8];
 
 bool comm_is_js_ready() {
 	return s_js_ready;
@@ -42,12 +42,22 @@ static void outbox_failed_callback(DictionaryIterator *it, AppMessageResult reas
 static void inbox_received_callback(DictionaryIterator *iter, void *context) {
 	APP_LOG(APP_LOG_LEVEL_INFO, "MSG RECEIVED");
 	Tuple *ready_tuple = dict_find(iter, MESSAGE_KEY_JSReady);
+	Tuple *count_tuple = dict_find(iter, MESSAGE_KEY_Count);
+	Tuple *t = dict_read_first(iter);
+	APP_LOG(APP_LOG_LEVEL_INFO, "%p", t);
 	if (ready_tuple) {
 		APP_LOG(APP_LOG_LEVEL_INFO, "JS is ready");
 		s_js_ready = true;
 		text_layer_set_text(text_status, "Connected!");
         text_layer_set_background_color(text_status, COLOR_GREEN);
 	}
+	else if (count_tuple) {
+	    APP_LOG(APP_LOG_LEVEL_INFO, "Count update received: +%ld", count_tuple->value->int32);
+	    count += count_tuple->value->int32;
+        snprintf(count_buf, sizeof(count_buf), "%d", count);
+        text_layer_set_text(text_count, count_buf);
+
+    }
 }
 
 static void accel_data_handler(AccelData *data,uint32_t num_samples) {
@@ -109,7 +119,7 @@ static void prv_window_load(Window *window) {
   text_layer_set_text(text_status, "Connecting...");
   text_layer_set_text(text_packets_sent, "0");
   text_layer_set_text(text_packets_lost, "0");
-  text_layer_set_text(text_count, "1234"); // placeholder text
+  text_layer_set_text(text_count, "0"); // placeholder text
 
   text_layer_set_background_color(text_status, COLOR_YELLOW);
   text_layer_set_background_color(text_packets_sent, COLOR_GREEN);
