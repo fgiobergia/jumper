@@ -5,7 +5,8 @@
 * 18: string format: "-xxxx,-xxxx,-xxxx\0"
 * 7+4: format for timestamp prefix
 */
-#define DICT_SIZE 650
+#define NUM_SAMPLES 25 // number of samples per update (max 25 allowed)
+#define DICT_SIZE 1 + (NUM_SAMPLES * 7) + (NUM_SAMPLES * 18) + 7 + 4 + 20 // + 20 for good measure
 
 #define COLOR_GREEN GColorMintGreen
 #define COLOR_YELLOW GColorIcterine
@@ -125,6 +126,7 @@ static void prv_window_unload(Window *window) {
   text_layer_destroy(text_status);
   text_layer_destroy(text_packets_sent);
   text_layer_destroy(text_packets_lost);
+  text_layer_destroy(text_count);
 }
 
 static void prv_init(void) {
@@ -135,9 +137,10 @@ static void prv_init(void) {
   app_message_register_outbox_failed(outbox_failed_callback);
   app_message_register_inbox_received(inbox_received_callback);
 
-  accel_data_service_subscribe(25, accel_data_handler);
+  accel_data_service_subscribe(NUM_SAMPLES, accel_data_handler);
 
   // _set_sampling_fails if called before _service_subscribe
+
   // Reasonable jumping speed: < 200 bpm => 4 Hz. 25Hz should suffice
   // (25 is also the defult sampling frequency, but we're setting it
   // anyway, just in case we need to change it afterwards
