@@ -1,12 +1,25 @@
 #include <string.h>
 #include <pebble.h>
 
-#define DICT_SIZE 650
+/* 1 + (25 * 7) + (25 * 17) + 7 + 4 => 637 (round up to 650)
+* 18: string format: "-xxxx,-xxxx,-xxxx\0"
+* 7+4: format for timestamp prefix
+*/
+#define NUM_SAMPLES 25 // number of samples per update (max 25 allowed)
+#define DICT_SIZE 1 + (NUM_SAMPLES * 7) + (NUM_SAMPLES * 18) + 7 + 4 + 20 // + 20 for good measure
+
+#define COLOR_GREEN GColorMintGreen
+#define COLOR_YELLOW GColorIcterine
+#define COLOR_RED GColorMelon
 
 static bool s_js_ready;
 
 static Window *s_window;
-static TextLayer *s_text_layer;
+static TextLayer *text_status, *text_packets_sent, *text_packets_lost, *text_count;
+
+static int packets_sent = 0, packets_lost = 0;
+
+char packets_sent_buf[18], packets_lost_buf[18];
 
 bool comm_is_js_ready() {
 	return s_js_ready;
@@ -14,10 +27,16 @@ bool comm_is_js_ready() {
 
 static void outbox_sent_callback(DictionaryIterator *it, void *context) {
 	APP_LOG(APP_LOG_LEVEL_DEBUG, "Message sent successfully");
+	packets_sent++;
+	snprintf(packets_sent_buf, sizeof(packets_sent_buf), "%d", packets_sent);
+	text_layer_set_text(text_packets_sent, packets_sent_buf);
 }
 
 static void outbox_failed_callback(DictionaryIterator *it, AppMessageResult reason, void *context) {
 	APP_LOG(APP_LOG_LEVEL_ERROR, "Failed to send message. Reason %d", reason);
+	packets_lost++;
+	snprintf(packets_lost_buf, sizeof(packets_lost_buf), "%d", packets_lost);
+	text_layer_set_text(text_packets_lost, packets_lost_buf);
 }
 
 static void inbox_received_callback(DictionaryIterator *iter, void *context) {
@@ -26,6 +45,8 @@ static void inbox_received_callback(DictionaryIterator *iter, void *context) {
 	if (ready_tuple) {
 		APP_LOG(APP_LOG_LEVEL_INFO, "JS is ready");
 		s_js_ready = true;
+		text_layer_set_text(text_status, "Connected!");
+        text_layer_set_background_color(text_status, COLOR_GREEN);
 	}
 }
 
@@ -58,61 +79,79 @@ static void accel_data_handler(AccelData *data,uint32_t num_samples) {
 	}
 }
 
-static void prv_select_click_handler(ClickRecognizerRef recognizer, void *context) {
-  text_layer_set_text(s_text_layer, "Select");
-}
-
-static void prv_up_click_handler(ClickRecognizerRef recognizer, void *context) {
-  text_layer_set_text(s_text_layer, "Up");
-}
-
-static void prv_down_click_handler(ClickRecognizerRef recognizer, void *context) {
-  text_layer_set_text(s_text_layer, "Down");
-}
-
-static void prv_click_config_provider(void *context) {
-  window_single_click_subscribe(BUTTON_ID_SELECT, prv_select_click_handler);
-  window_single_click_subscribe(BUTTON_ID_UP, prv_up_click_handler);
-  window_single_click_subscribe(BUTTON_ID_DOWN, prv_down_click_handler);
-}
 
 static void prv_window_load(Window *window) {
   Layer *window_layer = window_get_root_layer(window);
   GRect bounds = layer_get_bounds(window_layer);
 
-  s_text_layer = text_layer_create(GRect(0, 72, bounds.size.w, 20));
-  text_layer_set_text(s_text_layer, "Press a button");
-  text_layer_set_text_alignment(s_text_layer, GTextAlignmentCenter);
-  layer_add_child(window_layer, text_layer_get_layer(s_text_layer));
+  // bottom text (connecting... connected... failed)
+  text_status = text_layer_create(GRect(0, bounds.size.h - 28, bounds.size.w, 24));
+  text_layer_set_text_alignment(text_status, GTextAlignmentCenter);
+  text_layer_set_font(text_status, fonts_get_system_font(FONT_KEY_GOTHIC_18));
+
+  // top left text  (# packets sent successfully)
+  text_packets_sent = text_layer_create(GRect(0, 0, bounds.size.w / 2, 28));
+  text_layer_set_text_alignment(text_packets_sent, GTextAlignmentCenter);
+  text_layer_set_font(text_packets_sent, fonts_get_system_font(FONT_KEY_ROBOTO_CONDENSED_21));
+
+  // top right text (# packets failed)
+  text_packets_lost = text_layer_create(GRect(bounds.size.w / 2, 0, bounds.size.w / 2, 28));
+  text_layer_set_text_alignment(text_packets_lost, GTextAlignmentCenter);
+  text_layer_set_font(text_packets_lost, fonts_get_system_font(FONT_KEY_ROBOTO_CONDENSED_21));
+
+  // center text (skips count)
+  int x = 52;
+  text_count = text_layer_create(GRect(0, (bounds.size.h - x)/2, bounds.size.w, x));
+  text_layer_set_text_alignment(text_count, GTextAlignmentCenter);
+  text_layer_set_font(text_count, fonts_get_system_font(FONT_KEY_BITHAM_42_MEDIUM_NUMBERS));
+
+
+  text_layer_set_text(text_status, "Connecting...");
+  text_layer_set_text(text_packets_sent, "0");
+  text_layer_set_text(text_packets_lost, "0");
+  text_layer_set_text(text_count, "1234"); // placeholder text
+
+  text_layer_set_background_color(text_status, COLOR_YELLOW);
+  text_layer_set_background_color(text_packets_sent, COLOR_GREEN);
+  text_layer_set_background_color(text_packets_lost, COLOR_RED);
+  
+  layer_add_child(window_layer, text_layer_get_layer(text_status));
+  layer_add_child(window_layer, text_layer_get_layer(text_packets_sent));
+  layer_add_child(window_layer, text_layer_get_layer(text_packets_lost));
+  layer_add_child(window_layer, text_layer_get_layer(text_count));
+
 }
 
 static void prv_window_unload(Window *window) {
-  text_layer_destroy(s_text_layer);
+  text_layer_destroy(text_status);
+  text_layer_destroy(text_packets_sent);
+  text_layer_destroy(text_packets_lost);
+  text_layer_destroy(text_count);
 }
 
 static void prv_init(void) {
   s_window = window_create();
-  window_set_click_config_provider(s_window, prv_click_config_provider);
 
   /* register callbacks for sent/failed messages */
   app_message_register_outbox_sent(outbox_sent_callback);
   app_message_register_outbox_failed(outbox_failed_callback);
   app_message_register_inbox_received(inbox_received_callback);
 
-  accel_data_service_subscribe(25, accel_data_handler);
+  accel_data_service_subscribe(NUM_SAMPLES, accel_data_handler);
+
   // _set_sampling_fails if called before _service_subscribe
-  accel_service_set_sampling_rate(ACCEL_SAMPLING_100HZ);
+
+  // Reasonable jumping speed: < 200 bpm => 4 Hz. 25Hz should suffice
+  // (25 is also the defult sampling frequency, but we're setting it
+  // anyway, just in case we need to change it afterwards
+  accel_service_set_sampling_rate(ACCEL_SAMPLING_25HZ);
 
   window_set_window_handlers(s_window, (WindowHandlers) {
     .load = prv_window_load,
     .unload = prv_window_unload,
   });
 
-  /* 1 + (25 * 7) + (25 * 17) + 7 + 4 => 637 (round up to 650)
-   * 18: string format: "-xxxx,-xxxx,-xxxx\0"
-   * 7+4: format for timestamp prefix
-   */
-  app_message_open(16, 650);
+  app_message_open(16, DICT_SIZE);
   const bool animated = true;
   window_stack_push(s_window, animated);
 }
