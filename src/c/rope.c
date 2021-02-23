@@ -12,14 +12,42 @@
 #define COLOR_YELLOW GColorIcterine
 #define COLOR_RED GColorMelon
 
+// time used for timer (1 second). Intuitively,
+// this should be 1000 ms (duh), but there is some
+// delay between when one timer fires and the other
+// one is set. Empirically, we observed that the watch
+// is ~ 3 s behind in a 10 minutes period (9:57 vs 10:00).
+// A value of 997 has been observed to work quite well 
+#define MS_IN_S 997
+
 static bool s_js_ready;
 
 static Window *s_window;
-static TextLayer *text_status, *text_packets_sent, *text_packets_lost, *text_count;
+static TextLayer *text_status, *text_packets_sent, *text_packets_lost, *text_count, *text_elapsed;
 
-static int packets_sent = 0, packets_lost = 0, count = 0;
+static int packets_sent = 0, packets_lost = 0, count = 0, elapsed_s = 0;
 
-char packets_sent_buf[8], packets_lost_buf[8], count_buf[8];
+char packets_sent_buf[8], packets_lost_buf[8], count_buf[8], elapsed_buf[16];
+
+void update_timer() {
+    int h, m, s;
+    app_timer_register(MS_IN_S, update_timer, NULL);
+    elapsed_s++;
+
+    h = elapsed_s / 3600;
+    m = (elapsed_s % 3600) / 60;
+    s = (elapsed_s % 3600) % 60;
+
+    if (h) { // now handling hours
+        snprintf(elapsed_buf, sizeof(elapsed_buf), "%02d:%02d:%02d", h, m, s); 
+    }
+    else {
+        snprintf(elapsed_buf, sizeof(elapsed_buf), "%02d:%02d", m, s); 
+    }
+    text_layer_set_text(text_elapsed, elapsed_buf);
+}
+
+
 
 bool comm_is_js_ready() {
 	return s_js_ready;
@@ -115,11 +143,18 @@ static void prv_window_load(Window *window) {
   text_layer_set_text_alignment(text_count, GTextAlignmentCenter);
   text_layer_set_font(text_count, fonts_get_system_font(FONT_KEY_BITHAM_42_MEDIUM_NUMBERS));
 
+  // center text, above skips count (elapsed time)
+  int y = 32;
+  text_elapsed = text_layer_create(GRect(0, (bounds.size.h - x)/2 - y, bounds.size.w, y));
+  text_layer_set_text_alignment(text_elapsed, GTextAlignmentCenter);
+  text_layer_set_font(text_elapsed, fonts_get_system_font(FONT_KEY_GOTHIC_28));
+
 
   text_layer_set_text(text_status, "Connecting...");
   text_layer_set_text(text_packets_sent, "0");
   text_layer_set_text(text_packets_lost, "0");
   text_layer_set_text(text_count, "0"); // placeholder text
+  text_layer_set_text(text_elapsed, "00:00"); // placeholder text
 
   text_layer_set_background_color(text_status, COLOR_YELLOW);
   text_layer_set_background_color(text_packets_sent, COLOR_GREEN);
@@ -129,6 +164,7 @@ static void prv_window_load(Window *window) {
   layer_add_child(window_layer, text_layer_get_layer(text_packets_sent));
   layer_add_child(window_layer, text_layer_get_layer(text_packets_lost));
   layer_add_child(window_layer, text_layer_get_layer(text_count));
+  layer_add_child(window_layer, text_layer_get_layer(text_elapsed));
 
 }
 
@@ -137,6 +173,7 @@ static void prv_window_unload(Window *window) {
   text_layer_destroy(text_packets_sent);
   text_layer_destroy(text_packets_lost);
   text_layer_destroy(text_count);
+  text_layer_destroy(text_elapsed);
 }
 
 static void prv_init(void) {
@@ -160,6 +197,8 @@ static void prv_init(void) {
     .load = prv_window_load,
     .unload = prv_window_unload,
   });
+
+  app_timer_register(MS_IN_S, update_timer, NULL);
 
   app_message_open(16, DICT_SIZE);
   const bool animated = true;
