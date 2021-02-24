@@ -18,31 +18,36 @@
 // one is set. Empirically, we observed that the watch
 // is ~ 3 s behind in a 10 minutes period (9:57 vs 10:00).
 // A value of 997 has been observed to work quite well 
-#define MS_IN_S 997
+#define TIME_UPDATE_INTERVAL 1000
 
 static bool s_js_ready;
 
 static Window *s_window;
 static TextLayer *text_status, *text_packets_sent, *text_packets_lost, *text_count, *text_elapsed;
 
-static int packets_sent = 0, packets_lost = 0, count = 0, elapsed_s = 0;
+static int packets_sent = 0, packets_lost = 0, count = 0;
+
+time_t start_time;
 
 char packets_sent_buf[8], packets_lost_buf[8], count_buf[8], elapsed_buf[16];
 
 void update_timer() {
-    int h, m, s;
-    app_timer_register(MS_IN_S, update_timer, NULL);
-    elapsed_s++;
+    time_t curr_time, elapsed;
+    unsigned int h, m, s;
+    app_timer_register(TIME_UPDATE_INTERVAL, update_timer, NULL);
 
-    h = elapsed_s / 3600;
-    m = (elapsed_s % 3600) / 60;
-    s = (elapsed_s % 3600) % 60;
+    curr_time = time(NULL);
+    elapsed = curr_time - start_time;
+
+    h = elapsed / 3600;
+    m = (elapsed % 3600) / 60;
+    s = (elapsed % 3600) % 60;
 
     if (h) { // now handling hours
-        snprintf(elapsed_buf, sizeof(elapsed_buf), "%02d:%02d:%02d", h, m, s); 
+        snprintf(elapsed_buf, sizeof(elapsed_buf), "%02u:%02u:%02u", h, m, s); 
     }
     else {
-        snprintf(elapsed_buf, sizeof(elapsed_buf), "%02d:%02d", m, s); 
+        snprintf(elapsed_buf, sizeof(elapsed_buf), "%02u:%02u", m, s); 
     }
     text_layer_set_text(text_elapsed, elapsed_buf);
 }
@@ -198,7 +203,8 @@ static void prv_init(void) {
     .unload = prv_window_unload,
   });
 
-  app_timer_register(MS_IN_S, update_timer, NULL);
+  start_time = time(NULL);
+  app_timer_register(TIME_UPDATE_INTERVAL, update_timer, NULL);
 
   app_message_open(16, DICT_SIZE);
   const bool animated = true;
