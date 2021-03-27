@@ -2,6 +2,3 @@
 build
 *.swp
 venv
-venv2
-server/storage/*
-__pycache__
